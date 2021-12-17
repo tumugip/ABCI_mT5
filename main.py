@@ -34,10 +34,10 @@ import shutil
 PRETRAINED_MODEL_NAME = "google/mt5-small"
 
 # 転移学習済みモデルを保存する場所
-DATA_DIR = "/content/data"
-MODEL_DIR = "/content/model"
+DATA_DIR = "data"
+MODEL_DIR = "model"
 
-INPUT_tsv = '/content/corpus_Python-JPN/Corpus-DS/DS_BM.tsv'
+INPUT_tsv = 'corpus_Python-JPN/Corpus-DS/DS_BM.tsv'
 # INPUT_tsv = '/content/corpus_Python-JPN/Corpus-DS/parameter/DS_B_diff_shuffle.tsv'
 
 
