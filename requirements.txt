@@ -1,0 +1,9 @@
+pandas
+matplotlib
+sklearn
+numpy
+torch
+tqdm
+transformers
+pytorch_lightning
+sentencepiece
