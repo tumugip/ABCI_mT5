@@ -300,7 +300,7 @@ def translate(text):
     if USE_GPU:
         input_ids = input_ids.cuda()
     predict = trained_model.generate(input_ids)
-    # print(tokenizer.d.ecode(predict[0], skip_special_tokens=True))
+    # print(tokenizer.decode(predict[0], skip_special_tokens=True))
 
 def translate_beam(text: str, beams=5, max_length=64):
         trained_model.config.update({"num_beams": beams})
