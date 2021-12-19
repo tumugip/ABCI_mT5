@@ -17,6 +17,7 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset, DataLoader
 import pytorch_lightning as pl
+from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 from transformers import (
     AdamW,
     MT5ForConditionalGeneration,
@@ -61,8 +62,6 @@ def from_tsv(f_path):
   df_train.to_csv('data/train.tsv', header=False, index=False, sep='\t', quoting=csv.QUOTE_NONE, doublequote=False, escapechar='\n')
   df_valid.to_csv('data/dev.tsv', header=False, index=False, sep='\t', quoting=csv.QUOTE_NONE, doublequote=False, escapechar='\n')
   df_test.to_csv('data/test.tsv', header=False, index=False, sep='\t', quoting=csv.QUOTE_NONE, doublequote=False, escapechar='\n')
-
-  print(f'train date : {len(df_train)}, validation data : {len(df_valid)}, test data : {len(df_test)}')
 
   return len(df_train), len(df_valid), len(df_test)
 
@@ -290,18 +289,18 @@ class MT5FineTuner(pl.LightningModule):
                           num_workers=4) 
 
 # 量子化
-def quantize_transform(model):
-    model = torch.quantization.quantize_dynamic(
-        model, {torch.nn.Linear}, dtype=torch.qint8
-    )
-    return model
+# def quantize_transform(model):
+#     model = torch.quantization.quantize_dynamic(
+#         model, {torch.nn.Linear}, dtype=torch.qint8
+#     )
+#     return model
 
 def translate(text):
     input_ids = tokenizer(text, return_tensors='pt').input_ids
     if USE_GPU:
         input_ids = input_ids.cuda()
     predict = trained_model.generate(input_ids)
-    print(tokenizer.decode(predict[0], skip_special_tokens=True))
+    # print(tokenizer.d.ecode(predict[0], skip_special_tokens=True))
 
 def translate_beam(text: str, beams=5, max_length=64):
         trained_model.config.update({"num_beams": beams})
@@ -332,170 +331,158 @@ def translate_beam(text: str, beams=5, max_length=64):
 
 
 #プログラムの実行
+if __name__ == '__main__':
 
-train_num, valid_num, test_num = from_tsv(INPUT_tsv)
+    train_num, valid_num, test_num = from_tsv(INPUT_tsv)
 
-INPUT_tsv = INPUT_tsv[INPUT_tsv.rfind('/')+1:]
+    set_seed(42)
 
-set_seed(42)
+    var_tokens = []
+    name_val_tokens = []
 
-
-
-
-var_tokens = []
-name_val_tokens = []
-
-# for idx in range(1, 10):
-#   var_tokens.append(f'<var{idx}>')
-
-for idx in range(1, 7):
-  var_tokens.append(f'<var{idx}>')
-  name_val_tokens.append(f'<name{idx}>')
-  name_val_tokens.append(f'<val{idx}>')
+    for idx in range(1, 7):
+        var_tokens.append(f'<var{idx}>')
+        name_val_tokens.append(f'<name{idx}>')
+        name_val_tokens.append(f'<val{idx}>')
 
 
-# パラメータ化用の特殊トークン
-# additional_special_tokens = ['<A>', '<B>', '<C>', '<D>', '<E>', '<a>', '<b>', '<c>', '<d>', '<e>']
-additional_special_tokens = name_val_tokens
+    # パラメータ化用の特殊トークン
+    # additional_special_tokens = ['<A>', '<B>', '<C>', '<D>', '<E>', '<a>', '<b>', '<c>', '<d>', '<e>']
+    additional_special_tokens = name_val_tokens
 
-# トークナイザー（SentencePiece）モデルの読み込み
-tokenizer = MT5Tokenizer.from_pretrained(PRETRAINED_MODEL_NAME, is_fast=True)
-tokenizer.add_tokens(additional_special_tokens)
+    # トークナイザー（SentencePiece）モデルの読み込み
+    tokenizer = MT5Tokenizer.from_pretrained(PRETRAINED_MODEL_NAME, is_fast=True)
+    tokenizer.add_tokens(additional_special_tokens)
 
-# テストデータセットの読み込み
-test_dataset = TsvDataset(tokenizer, DATA_DIR, "test.tsv", 
-                           input_max_len=128, target_max_len=128)
+    # テストデータセットの読み込み
+    test_dataset = TsvDataset(tokenizer, DATA_DIR, "test.tsv", 
+                            input_max_len=128, target_max_len=128)
 
-# # cnt = 0
-# for data in test_dataset:
-#     print("A. 入力データの元になる文字列")
-#     print(tokenizer.decode(data["source_ids"]))
-#     print()
-#     print("B. 入力データ（Aの文字列がトークナイズされたトークンID列）")
-#     print(data["source_ids"])
-#     print()
-#     print("C. 出力データの元になる文字列")
-#     print(tokenizer.decode(data["target_ids"]))
-#     print()
-#     print("D. 出力データ（Cの文字列がトークナイズされたトークンID列）")
-#     print(data["target_ids"])
-#     break
-#     # cnt += 1
-#     # if cnt == 5:
-#     #     break
+    train_params = dict(
+        accumulate_grad_batches = 1,
+        gpus = 1 if USE_GPU else 0,
+        max_epochs = 50,
+        precision= 32,
+        gradient_clip_val=1.0,
+        # amp_level=args.opt_level,
+        # checkpoint_callback=checkpoint_callback,
+    )
 
+    # 転移学習の実行（GPUを利用すれば1エポック10分程度）
+    model = MT5FineTuner()
+    trainer = pl.Trainer(**train_params, callbacks=[EarlyStopping(monitor="val_loss")])
+    trainer.fit(model)
 
-train_params = dict(
-    accumulate_grad_batches = 1,
-    gpus = 1 if USE_GPU else 0,
-    max_epochs = 1,
-    precision= 32,
-    gradient_clip_val=1.0,
-    # amp_level=args.opt_level,
-    # checkpoint_callback=checkpoint_callback,
-)
+    # 最終エポックのモデルを保存
+    model.tokenizer.save_pretrained(MODEL_DIR)
+    model.model.save_pretrained(MODEL_DIR)
 
+    del model
 
-# 転移学習の実行（GPUを利用すれば1エポック10分程度）
-model = MT5FineTuner()
-trainer = pl.Trainer(**train_params)
-trainer.fit(model)
+    # トークナイザー（SentencePiece）
+    tokenizer = MT5Tokenizer.from_pretrained(MODEL_DIR, is_fast=True)
 
-# 最終エポックのモデルを保存
-model.tokenizer.save_pretrained(MODEL_DIR)
-model.model.save_pretrained(MODEL_DIR)
+    # 学習済みモデル
+    trained_model = MT5ForConditionalGeneration.from_pretrained(MODEL_DIR)
+    # q_trained_model = quantize_transform(MT5ForConditionalGeneration.from_pretrained(MODEL_DIR))
 
-del model
-
-
-
-# トークナイザー（SentencePiece）
-tokenizer = MT5Tokenizer.from_pretrained(MODEL_DIR, is_fast=True)
-
-# 学習済みモデル
-trained_model = MT5ForConditionalGeneration.from_pretrained(MODEL_DIR)
-q_trained_model = quantize_transform(MT5ForConditionalGeneration.from_pretrained(MODEL_DIR))
-
-# GPUの利用有無
-USE_GPU = torch.cuda.is_available()
-if USE_GPU:
-    trained_model.cuda()
-
-
-# 学習済みモデルのパラメータ数
-params = 0
-for p in trained_model.parameters():
-    if p.requires_grad:
-        params += p.numel()
-
-q_params = 0
-for p in q_trained_model.parameters():
-    if p.requires_grad:
-        q_params += p.numel()
-
-print('Number of parameters : ', params, '-->', q_params)
-
-
-# テストデータの読み込み
-test_dataset = TsvDataset(tokenizer, DATA_DIR, "test.tsv", 
-                          input_max_len=128, 
-                          target_max_len=128)
-
-test_loader = DataLoader(test_dataset, batch_size=32, num_workers=4)
-
-trained_model.eval()
-
-outputs = []
-targets = []
-sources = []
-
-for batch in tqdm(test_loader):
-    trained_model.config.update({"num_beams": 5})
-    input_ids = batch['source_ids']
-    input_mask = batch['source_mask']
-
+    # GPUの利用有無
+    USE_GPU = torch.cuda.is_available()
     if USE_GPU:
-        input_ids = input_ids.cuda()
-        input_mask = input_mask.cuda()
-
-    outs = trained_model.generate(
-        input_ids=input_ids, 
-        attention_mask=input_mask, 
-        max_length=128,
-        num_return_sequences=5,
-        # length_penalty=8.0,
-        return_dict_in_generate=True,
-        # output_scores=True,
-        early_stopping=True)
-
-    dec = [tokenizer.decode(ids, skip_special_tokens=True, 
-                            clean_up_tokenization_spaces=False) 
-                for ids in outs.sequences]
-    target = [tokenizer.decode(ids, skip_special_tokens=True, 
-                               clean_up_tokenization_spaces=False) 
-                for ids in batch["target_ids"]]
-    source = [tokenizer.decode(ids, skip_special_tokens=True, 
-                               clean_up_tokenization_spaces=False) 
-                for ids in batch["source_ids"]]
-
-    outputs.extend(dec[0])
-    targets.extend(target)
-    sources.extend(source)
+        trained_model.cuda()
 
 
-df = pd.DataFrame(list(zip(sources, targets, outputs)), columns = ['JPN', 'Py', ' Predict'])
-df.head()
+    # 学習済みモデルのパラメータ数
+    params = 0
+    for p in trained_model.parameters():
+        if p.requires_grad:
+            params += p.numel()
+
+    # q_params = 0
+    # for p in q_trained_model.parameters():
+    #     if p.requires_grad:
+    #         q_params += p.numel()
+
+    # テストデータの読み込み
+    test_dataset = TsvDataset(tokenizer, DATA_DIR, "test.tsv", 
+                            input_max_len=128, 
+                            target_max_len=128)
+
+    test_loader = DataLoader(test_dataset, batch_size=32, num_workers=4)
+
+    trained_model.eval()
+
+    outputs = []
+    targets = []
+    sources = []
+
+    for batch in tqdm(test_loader):
+        trained_model.config.update({"num_beams": 5})
+        input_ids = batch['source_ids']
+        input_mask = batch['source_mask']
+
+        if USE_GPU:
+            input_ids = input_ids.cuda()
+            input_mask = input_mask.cuda()
+
+        # outs = trained_model.generate(
+        #     input_ids=input_ids, 
+        #     attention_mask=input_mask, 
+        #     max_length=128,
+        #     num_return_sequences=5,
+        #     # length_penalty=8.0,
+        #     return_dict_in_generate=True,
+        #     output_scores=True,
+        #     early_stopping=True)
+
+        # pred_list = sorted([[tokenizer.decode(outs.sequences[i], skip_special_tokens=True),
+        #                       outs.sequences_scores[i].item()] for i in range(len(outs))], key=lambda x: x[1], reverse=True)
+        # sentences_list = [i[0] for i in pred_list]
+        # scores_list = [i[1] for i in pred_list]
+
+        # # dec = [tokenizer.decode(ids, skip_special_tokens=True, 
+        # #                         clean_up_tokenization_spaces=False) 
+        # #             for ids in outs.sequences]
+        # target = [tokenizer.decode(ids, skip_special_tokens=True, 
+        #                            clean_up_tokenization_spaces=False) 
+        #             for ids in batch["target_ids"]]
+        # source = [tokenizer.decode(ids, skip_special_tokens=True, 
+        #                            clean_up_tokenization_spaces=False) 
+        #             for ids in batch["source_ids"]]
+        # dec = sentences_list[0]    # とりあえずうまくいかない！！！！！！！！！！！！
+
+        # no BEAM
+        outs = trained_model.generate(input_ids=input_ids, 
+            attention_mask=input_mask, 
+            max_length=128,
+            return_dict_in_generate=True,
+            output_scores=True)
+
+        dec = [tokenizer.decode(ids, skip_special_tokens=True, 
+                                clean_up_tokenization_spaces=False) 
+                    for ids in outs.sequences]
+        target = [tokenizer.decode(ids, skip_special_tokens=True, 
+                                clean_up_tokenization_spaces=False) 
+                    for ids in batch["target_ids"]]
+        source = [tokenizer.decode(ids, skip_special_tokens=True, 
+                                clean_up_tokenization_spaces=False) 
+                    for ids in batch["source_ids"]]
+
+        outputs.extend(dec)
+        targets.extend(target)
+        sources.extend(source)
 
 
-INPUT_tsv = INPUT_tsv.replace('.tsv', '')
-OUTPUT_tsv = f'result_{INPUT_tsv}_forMT5.tsv'
-df.to_csv(OUTPUT_tsv, index=False, header=False, sep='\t', quoting=csv.QUOTE_NONE, doublequote=False, escapechar='\n')
+    df = pd.DataFrame(list(zip(sources, targets, outputs)), columns = ['JPN', 'Py', ' Predict'])
 
+    INPUT_tsv = INPUT_tsv[INPUT_tsv.rfind('/')+1:]
+    INPUT_tsv_name = INPUT_tsv.replace('.tsv', '')
+    OUTPUT_tsv = f'result_{INPUT_tsv_name}_forMT5.tsv'
+    df.to_csv(OUTPUT_tsv, index=False, header=False, sep='\t', quoting=csv.QUOTE_NONE, doublequote=False, escapechar='\n')
 
+    shutil.make_archive(f'model_{INPUT_tsv_name}_forMT5','zip',root_dir='model')
 
-shutil.make_archive('modelzip','zip',root_dir='model')
-
-
-
-input = 'データフレーム <name2> 内の <val4> とコラム <val1> に重複はあるのかどうかチェックする'
-translate_beam(input)
+    print('--- FINISH ---')
+    print('INPUT : ', INPUT_tsv)
+    print(f'train date : {train_num}, validation data : {valid_num}, test data : {test_num}')
+    print('Number of parameters : ', params)
