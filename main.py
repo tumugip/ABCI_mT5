@@ -27,6 +27,18 @@ from transformers import (
 import textwrap
 from tqdm.auto import tqdm
 import shutil
+import argparse  
+
+#オプションを設定する
+parser = argparse.ArgumentParser(description='Using mT5 with ABCI')
+parser.add_argument('input_file', help='corpus')
+parser.add_argument('-e','--epochs', help='epochs',type=int,default=4)
+parser.add_argument('--zip', action='store_true',help='Save the model as a zip file')
+parser.add_argument('--result',action='store_true',help='Output the result as a tsv file')    
+
+args = parser.parse_args() 
+
+
 
 
 #関数定義
@@ -38,7 +50,7 @@ PRETRAINED_MODEL_NAME = "google/mt5-small"
 DATA_DIR = "data"
 MODEL_DIR = "model"
 
-INPUT_tsv = 'corpus_Python-JPN/Corpus-DS/DS_BM.tsv'
+INPUT_tsv = args.input_file
 # INPUT_tsv = '/content/corpus_Python-JPN/Corpus-DS/parameter/DS_B_diff_shuffle.tsv'
 
 
@@ -361,7 +373,8 @@ if __name__ == '__main__':
     train_params = dict(
         accumulate_grad_batches = 1,
         gpus = 1 if USE_GPU else 0,
-        max_epochs = 50,
+        max_epochs =args.epochs,
+        # max_epochs = 50,
         precision= 32,
         gradient_clip_val=1.0,
         # amp_level=args.opt_level,
@@ -478,11 +491,24 @@ if __name__ == '__main__':
     INPUT_tsv = INPUT_tsv[INPUT_tsv.rfind('/')+1:]
     INPUT_tsv_name = INPUT_tsv.replace('.tsv', '')
     OUTPUT_tsv = f'result_{INPUT_tsv_name}_forMT5.tsv'
-    df.to_csv(OUTPUT_tsv, index=False, header=False, sep='\t', quoting=csv.QUOTE_NONE, doublequote=False, escapechar='\n')
+    
 
-    shutil.make_archive(f'model_{INPUT_tsv_name}_forMT5','zip',root_dir='model')
+
+    if args.zip == True:
+        df.to_csv(OUTPUT_tsv, index=False, header=False, sep='\t', quoting=csv.QUOTE_NONE, doublequote=False, escapechar='\n')
+    elif args.result==True:
+        shutil.make_archive(f'model_{INPUT_tsv_name}_forMT5','zip',root_dir='model')
+    else:
+        df.to_csv(OUTPUT_tsv, index=False, header=False, sep='\t', quoting=csv.QUOTE_NONE, doublequote=False, escapechar='\n')
+        shutil.make_archive(f'model_{INPUT_tsv_name}_forMT5','zip',root_dir='model')
 
     print('--- FINISH ---')
     print('INPUT : ', INPUT_tsv)
     print(f'train date : {train_num}, validation data : {valid_num}, test data : {test_num}')
     print('Number of parameters : ', params)
+
+
+
+
+
+  
