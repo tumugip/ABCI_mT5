@@ -32,7 +32,7 @@ import argparse
 #オプションを設定する
 parser = argparse.ArgumentParser(description='Using mT5 with ABCI')
 parser.add_argument('input_file', help='corpus')
-parser.add_argument('-e','--epochs', help='epochs',type=int,default=4)
+parser.add_argument('-e','--epochs', help='epochs',type=int,default=50)
 parser.add_argument('--zip', action='store_true',help='Save the model as a zip file')
 parser.add_argument('--result',action='store_true',help='Output the result as a tsv file')    
 
