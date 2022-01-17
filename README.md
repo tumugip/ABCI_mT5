@@ -2,13 +2,13 @@
 
 ## 使用方法
 
-1.ABCIにログイン(詳しくはSlackに載せてくださっているパワポを参照してください)
-2.Python3を使用できるようにモジュールのダウンロード(こちらもパワポを参照してください)
-3.(pip3のアップデート、いらないかも・・・)
-4.ABCI_mT5(このGitレポジトリ)をclone
-5.必要なライブラリをダウンロード(pip install -r /ABCI_mt5/requirements.txt)
-6.必要なフォルダを作成(mkdir data,mkdir model)
-7.main.pyを動かす
+1. ABCIにログイン(詳しくはSlackに載せてくださっているパワポを参照してください)
+2. Python3を使用できるようにモジュールのダウンロード(こちらもパワポを参照してください)
+3. (pip3のアップデート、いらないかも・・・)
+4. ABCI_mT5(このGitレポジトリ)をclone
+5. 必要なライブラリをダウンロード(pip install -r /ABCI_mt5/requirements.txt)
+6. 必要なフォルダを作成(mkdir data,mkdir model)
+7. main.pyを動かす
 
 
 
