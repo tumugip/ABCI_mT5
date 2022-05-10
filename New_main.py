@@ -32,9 +32,11 @@ import argparse
 #オプションを設定する
 parser = argparse.ArgumentParser(description='Using mT5 with ABCI')
 parser.add_argument('input_file', help='corpus')
+parser.add_argument('model',help='model')
 parser.add_argument('-e','--epochs', help='epochs',type=int,default=50)
 parser.add_argument('--zip', action='store_true',help='Save the model as a zip file')
 parser.add_argument('--result',action='store_true',help='Output the result as a tsv file')    
+
 
 args = parser.parse_args() 
 
@@ -44,7 +46,8 @@ args = parser.parse_args()
 #関数定義
 
 # 事前学習済みモデル
-PRETRAINED_MODEL_NAME = "google/mt5-small"
+PRETRAINED_MODEL_NAME = args.model
+# PRETRAINED_MODEL_NAME = "google/mt5-small"
 
 # 転移学習済みモデルを保存する場所
 DATA_DIR = "data"
@@ -510,6 +513,7 @@ if __name__ == '__main__':
 
     print('--- FINISH ---')
     print('INPUT : ', INPUT_tsv)
+    print('MODEL : ',PRETRAINED_MODEL_NAME)
     print(f'train date : {train_num}, validation data : {valid_num}, test data : {test_num}')
     print('Number of parameters : ', params)
 
