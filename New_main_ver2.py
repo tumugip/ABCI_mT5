@@ -72,6 +72,7 @@ def from_train(f_path):
 
   df = df.drop_duplicates()
   df = df.reset_index(drop=True)
+  df = df.reindex(columns=[1,0])
 
   df = df.sample(frac=1, random_state=0).reset_index(drop=True)
 
@@ -89,6 +90,7 @@ def from_test(f_path):
 
   df = df.drop_duplicates()
   df = df.reset_index(drop=True)
+  df = df.reindex(columns=[1,0])
 
   df = df.sample(frac=1, random_state=0).reset_index(drop=True)
 
