@@ -347,7 +347,7 @@ class MT5FineTuner(pl.LightningModule):
         """訓練データローダーを作成する"""
         return DataLoader(self.train_dataset, 
                         #   batch_size=self.hparams.train_batch_size, 
-                          batch_size=self.batch_size, 
+                          batch_size=self.hparams.batch_size, 
                           drop_last=True, shuffle=True, num_workers=4)
 
     def val_dataloader(self):
