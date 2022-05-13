@@ -13,173 +13,6 @@ from logging import StreamHandler, FileHandler, Formatter
 import torch
 from torch.utils.data import Dataset
 from tqdm import tqdm
-from da_multiese import transform_multitask
-from da_masking import get_transform_masking
-
-
-def _loading_dataset(hparams):
-    dataset = []
-    column = hparams.column
-    target_column = hparams.target_column
-    if target_column == -1:
-        for file in hparams.files:
-            logging.info(f'loading {file}')
-            if file.endswith('.csv') or file.endswith('.tsv'):
-                sep = ',' if file.endswith('.csv') else '\t'
-                with io.open(file, encoding=hparams.encoding) as f:
-                    reader = csv.reader(f, delimiter=sep)
-                    for row in reader:
-                        if column < len(row):
-                            dataset.append(row[column])
-            elif file.endswith('.jsonl'):
-                with io.open(file, encoding=hparams.encoding) as f:
-                    for line in f.readlines():
-                        data = json.loads(line)
-                        dataset.append(data[column])
-            else:
-                with io.open(file, encoding=hparams.encoding) as f:
-                    for line in f.readlines():
-                        dataset.append(line.rstrip('\n'))
-    else:
-        for file in hparams.files:
-            logging.info(f'loading {file}')
-            if file.endswith('.csv') or file.endswith('.tsv'):
-                sep = ',' if file.endswith('.csv') else '\t'
-                with io.open(file, encoding=hparams.encoding) as f:
-                    reader = csv.reader(f, delimiter=sep)
-                    for row in reader:
-                        if column < len(row) and target_column < len(row):
-                            src = row[column]
-                            tgt = row[target_column]
-                            _append_dup(hparams, dataset, src, tgt)
-            elif file.endswith('.jsonl'):
-                with io.open(file, encoding=hparams.encoding) as f:
-                    for line in f.readlines():
-                        data = json.loads(line)
-                        dataset.append((data[column], data[target_column]))
-            else:
-                with io.open(file, encoding=hparams.encoding) as f:
-                    for line in f.readlines():
-                        d = line.rstrip('\n')
-                        dataset.append((d, d))
-    logging.info(f'loaded {len(dataset)} dataset')
-    return dataset
-
-
-def _append_da(dataset, src, tgt):
-    dataset.append((src, tgt))
-    brace = src.count('{')
-    square = src.count('[')
-    vbar = src.count('|')
-    if brace > 0 and vbar != 0:
-        dataset.append((src, tgt))
-    if vbar > 5 or square > 3:
-        dataset.append((src, tgt))
-
-
-def _append_dup(hparams, dataset, src, tgt):
-    _append_da(dataset, src, tgt)
-    if src.startswith('trans:'):
-        src = src.replace('trans:', 'code:')
-        _append_da(dataset, src, tgt)
-
-
-def transform_nop(pair, hparams):
-    if isinstance(pair, str):
-        return pair, pair
-    return pair
-
-
-class DADataset(Dataset):
-    def __init__(self, hparams, dataset=None):
-        self.hparams = hparams
-        self.dataset = dataset
-        if self.dataset is None:
-            self.dataset = _loading_dataset(self.hparams)
-        if hparams.masking:
-            self.transform = get_transform_masking(hparams)
-        else:
-            self.transform = transform_multitask
-        self.encode = hparams.encode
-
-    def __len__(self):
-        return len(self.dataset)
-
-    def __getitem__(self, index):
-        src, tgt = self.transform(self.dataset[index], self.hparams)
-        return self.encode(src, tgt, self.hparams)
-
-    def test_and_save(self, testing_fn, transform=None, file=sys.stdout):
-        encode_orig = self.encode
-        transform_orig = self.transform
-        if transform is not None:
-            self.transform = transform
-        self.encode = encode_string
-        try:
-            if self.hparams.progress_bar:
-                for src, tgt in tqdm(self):
-                    src, gen, tgt = testing_fn(src, tgt)
-                    print(f'{src}\t{gen}\t{tgt}', file=file)
-            else:
-                for src, tgt in self:
-                    src, gen, tgt = testing_fn(src, tgt)
-                    print(f'{src}\t{gen}\t{tgt}', file=file)
-        finally:
-            self.encode = encode_orig
-            self.transform = transform_orig
-
-
-class Subset(Dataset):
-    def __init__(self, dataset, indices):
-        self.dataset = dataset
-        self.indices = indices
-
-    def __getitem__(self, idx):
-        return self.dataset[self.indices[idx]]
-
-    def __len__(self):
-        return len(self.indices)
-
-
-class KFoldDataset(Dataset):
-    def __init__(self, dataset: Dataset, kfold=5):
-        self.allset = dataset
-        self.trainset = Subset(dataset, [])
-        self.validset = Subset(dataset, [])
-        self.kfold = 5
-        self.index = self.kfold
-
-    def __getitem__(self, idx):
-        return self.allset[idx]
-
-    def __len__(self):
-        return len(self.allset)
-
-    def split(self):
-        self.index += 1
-        kfold = self.kfold
-        index = self.index % kfold
-        train_index = []
-        valid_index = []
-        for i in range(len(self.allset)):
-            if i % kfold == index:
-                valid_index.append(i)
-            else:
-                train_index.append(i)
-        random.shuffle(train_index)
-        random.shuffle(valid_index)
-        self.trainset.indices = train_index
-        self.validset.indices = valid_index
-        return self.trainset, self.validset
-
-    def test_and_save(self, gen_fn=lambda src, tgt: (src, tgt, None), file=sys.stdout):
-        if isinstance(self.allset, DADataset):
-            if isinstance(file, str):
-                with open(file, 'w') as f:
-                    self.allset.test_and_save(gen_fn, file=f)
-            else:
-                self.allset.test_and_save(gen_fn, file=file)
-
 
 # MULTITASKING_TRANSFORM
 
@@ -251,6 +84,28 @@ def _add_arguments(parser, args_dict):
         elif isinstance(default, str):
             parser.add_argument(option_name, default=default)
 
+def _setup_logger(hparams):
+    log_file = f'log{hparams.suffix}.txt'
+
+    # ストリームハンドラの設定
+    stream_handler = StreamHandler()
+    stream_handler.setLevel(INFO)
+    stream_handler.setFormatter(Formatter("%(message)s"))
+
+    # ファイルハンドラの設定
+    file_handler = FileHandler(log_file)
+
+    file_handler.setLevel(DEBUG)
+    file_handler.setFormatter(
+        Formatter(
+            "%(asctime)s@ %(name)s [%(levelname)s] %(funcName)s: %(message)s")
+    )
+    # ルートロガーの設定
+    logging.basicConfig(level=NOTSET, handlers=[stream_handler, file_handler])
+    logging.info(f'PyTorch: {torch.__version__}')
+    logging.info(f'hparams: {hparams}')
+
+
 
 def init_hparams(init_dict, description='Trainer of mT5 on ABCI', Tokenizer=None):
     parser = argparse.ArgumentParser(description=description)
@@ -305,55 +160,3 @@ def init_hparams(init_dict, description='Trainer of mT5 on ABCI', Tokenizer=None
     #     hparams.da_shuffle = 0.5
     _setup_logger(hparams)
     return hparams
-
-
-def _setup_logger(hparams):
-    log_file = f'log{hparams.suffix}.txt'
-
-    # ストリームハンドラの設定
-    stream_handler = StreamHandler()
-    stream_handler.setLevel(INFO)
-    stream_handler.setFormatter(Formatter("%(message)s"))
-
-    # ファイルハンドラの設定
-    file_handler = FileHandler(log_file)
-
-    file_handler.setLevel(DEBUG)
-    file_handler.setFormatter(
-        Formatter(
-            "%(asctime)s@ %(name)s [%(levelname)s] %(funcName)s: %(message)s")
-    )
-    # ルートロガーの設定
-    logging.basicConfig(level=NOTSET, handlers=[stream_handler, file_handler])
-    logging.info(f'PyTorch: {torch.__version__}')
-    logging.info(f'hparams: {hparams}')
-
-
-def _main():
-    init_dict = dict(
-        output_dir='./model',  # path to save the checkpoints
-        model_name_or_path='google/mt5-small',
-        tokenizer_name_or_path='google/mt5-small',
-        additional_tokens='<e0> <e1> <e2> <e3> <e4> <e5> <e6> <e7> <e8> <e9>',
-        seed=42,
-        encoding='utf_8',
-        column=0, target_column=1,
-        kfold=5,  # cross validation
-        max_seq_length=128,
-        target_max_seq_length=128,
-        progress_bar=False,
-        # da
-        da_choice=1.0, da_shuffle=1.0, bos_token='',
-        # unsupervised training option
-        masking=False,
-        masking_ratio=0.35,
-        masking_style='denoising_objective',
-    )
-    hparams = init_hparams(init_dict)
-    print(hparams)
-    dataset = KFoldDataset(DADataset(hparams))
-    dataset.test_and_save(gen_fn=lambda src, tgt: (src, tgt, ''))
-
-
-if __name__ == '__main__':
-    _main()
