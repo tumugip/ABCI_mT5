@@ -358,6 +358,8 @@ class MT5FineTuner(pl.LightningModule):
 #     )
 #     return model
 
+
+
 def translate(text):
     input_ids = tokenizer(text, return_tensors='pt').input_ids
     if USE_GPU:
@@ -443,7 +445,7 @@ if __name__ == '__main__':
     # trainer = pl.Trainer(**train_params, callbacks=[EarlyStopping(monitor="val_loss")])
     # trainer.fit(model)
 
-    model = MT5FineTuner()
+    model = MT5FineTuner(hparams) #変更
     trainer = pl.Trainer(**train_params)
     trainer.tune(model) # tuneを追加
     trainer.fit(model)
