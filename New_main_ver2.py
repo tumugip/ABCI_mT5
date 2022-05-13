@@ -334,7 +334,8 @@ class MT5FineTuner(pl.LightningModule):
             self.val_dataset = val_dataset
 
             self.t_total = (
-                (len(train_dataset) // (self.hparams.train_batch_size * max(1, self.hparams.n_gpu)))
+                (len(train_dataset) // (self.hparams.batch_size * max(1, self.hparams.n_gpu)))
+                # (len(train_dataset) // (self.hparams.train_batch_size * max(1, self.hparams.n_gpu)))
                 // self.hparams.gradient_accumulation_steps
                 * float(self.hparams.num_train_epochs)
             )
@@ -349,7 +350,8 @@ class MT5FineTuner(pl.LightningModule):
     def val_dataloader(self):
         """バリデーションデータローダーを作成する"""
         return DataLoader(self.val_dataset, 
-                          batch_size=self.hparams.eval_batch_size, 
+                          batch_size=self.hparams.batch_size, 
+                        #   batch_size=self.hparams.eval_batch_size,
                           num_workers=4) 
 
 # 量子化
