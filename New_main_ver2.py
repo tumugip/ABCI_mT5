@@ -204,7 +204,7 @@ class MT5FineTuner(pl.LightningModule):
 
                  max_input_length=128,
                  max_target_length=128,
-                 batch_size=32,
+                 batch_size=8,
                 
                  num_train_epochs=4,
 
