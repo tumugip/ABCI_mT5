@@ -430,7 +430,6 @@ if __name__ == '__main__':
         accumulate_grad_batches = 1,
         gpus = 1 if USE_GPU else 0,
         max_epochs =args.epochs,
-        batch_size = 2,
         # max_epochs = 50,
         precision= 32,
         gradient_clip_val=1.0,
