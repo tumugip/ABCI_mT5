@@ -24,12 +24,12 @@ from transformers import (
     MT5Tokenizer,
     get_linear_schedule_with_warmup
 )
-from transformers import AutoTokenizer #追加
+# from transformers import AutoTokenizer #追加
 import textwrap
 from tqdm.auto import tqdm
 import shutil
 import argparse  
-from da_dataset import init_hparams, DADataset, KFoldDataset #追加
+# from da_dataset import init_hparams #追加
 
 
 #オプションを設定する
@@ -429,6 +429,7 @@ if __name__ == '__main__':
         accumulate_grad_batches = 1,
         gpus = 1 if USE_GPU else 0,
         max_epochs =args.epochs,
+        batch_size = 2,
         # max_epochs = 50,
         precision= 32,
         gradient_clip_val=1.0,
@@ -437,15 +438,15 @@ if __name__ == '__main__':
         auto_scale_batch_size="binsearch"
     )
 
-    hparams = init_hparams(train_params, Tokenizer=AutoTokenizer) #追加
-    print(hparams) #追加
+    # hparams = init_hparams(train_params, Tokenizer=AutoTokenizer) #追加
+    # print(hparams) #追加
 
     # 転移学習の実行（GPUを利用すれば1エポック10分程度）
     # model = MT5FineTuner()
     # trainer = pl.Trainer(**train_params, callbacks=[EarlyStopping(monitor="val_loss")])
     # trainer.fit(model)
 
-    model = MT5FineTuner(hparams) #変更
+    model = MT5FineTuner() #変更
     trainer = pl.Trainer(**train_params)
     trainer.tune(model) # tuneを追加
     trainer.fit(model)
