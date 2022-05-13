@@ -206,8 +206,8 @@ class MT5FineTuner(pl.LightningModule):
                  max_target_length=128,
                 #  train_batch_size=2,
                 #  eval_batch_size=2,
-                 train_batch_size=4,
-                 eval_batch_size=4,
+                 batch_size=32,
+                #  eval_batch_size=4,
                 #  train_batch_size=8,
                 #  eval_batch_size=8,
                  num_train_epochs=4,
@@ -342,7 +342,8 @@ class MT5FineTuner(pl.LightningModule):
     def train_dataloader(self):
         """訓練データローダーを作成する"""
         return DataLoader(self.train_dataset, 
-                          batch_size=self.hparams.train_batch_size, 
+                        #   batch_size=self.hparams.train_batch_size, 
+                          batch_size=self.batch_size, 
                           drop_last=True, shuffle=True, num_workers=4)
 
     def val_dataloader(self):
@@ -446,7 +447,7 @@ if __name__ == '__main__':
     # trainer = pl.Trainer(**train_params, callbacks=[EarlyStopping(monitor="val_loss")])
     # trainer.fit(model)
 
-    model = MT5FineTuner() #変更
+    model = MT5FineTuner(batch_size=32) #変更
     trainer = pl.Trainer(**train_params)
     trainer.tune(model) # tuneを追加
     trainer.fit(model)
