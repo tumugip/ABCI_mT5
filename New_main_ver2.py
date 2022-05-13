@@ -24,10 +24,13 @@ from transformers import (
     MT5Tokenizer,
     get_linear_schedule_with_warmup
 )
+from transformers import AutoTokenizer #追加
 import textwrap
 from tqdm.auto import tqdm
 import shutil
 import argparse  
+from da_dataset import init_hparams, DADataset, KFoldDataset #追加
+
 
 #オプションを設定する
 parser = argparse.ArgumentParser(description='Using mT5 with ABCI')
@@ -431,6 +434,9 @@ if __name__ == '__main__':
         # checkpoint_callback=checkpoint_callback,
         auto_scale_batch_size="binsearch"
     )
+
+    hparams = init_hparams(train_params, Tokenizer=AutoTokenizer) #追加
+    print(hparams) #追加
 
     # 転移学習の実行（GPUを利用すれば1エポック10分程度）
     # model = MT5FineTuner()
