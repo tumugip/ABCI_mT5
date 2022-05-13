@@ -429,11 +429,17 @@ if __name__ == '__main__':
         gradient_clip_val=1.0,
         # amp_level=args.opt_level,
         # checkpoint_callback=checkpoint_callback,
+        auto_scale_batch_size="binsearch"
     )
 
     # 転移学習の実行（GPUを利用すれば1エポック10分程度）
+    # model = MT5FineTuner()
+    # trainer = pl.Trainer(**train_params, callbacks=[EarlyStopping(monitor="val_loss")])
+    # trainer.fit(model)
+
     model = MT5FineTuner()
-    trainer = pl.Trainer(**train_params, callbacks=[EarlyStopping(monitor="val_loss")])
+    trainer = pl.Trainer(**train_params)
+    trainer.tune(model) # tuneを追加
     trainer.fit(model)
 
     # 最終エポックのモデルを保存
@@ -540,7 +546,7 @@ if __name__ == '__main__':
 
     df = pd.DataFrame(list(zip(sources, targets, outputs)), columns = ['JPN', 'Py', ' Predict'])
 
-    INPUT_tsv = INPUT_tsv[INPUT_tsv.rfind('/')+1:]
+    INPUT_tsv = TRAIN_tsv[TRAIN_tsv.rfind('/')+1:]
     INPUT_tsv_name = INPUT_tsv.replace('.tsv', '')
     OUTPUT_tsv = f'result_{INPUT_tsv_name}_forMT5.tsv'
     
