@@ -204,12 +204,8 @@ class MT5FineTuner(pl.LightningModule):
 
                  max_input_length=128,
                  max_target_length=128,
-                #  train_batch_size=2,
-                #  eval_batch_size=2,
                  batch_size=32,
-                #  eval_batch_size=4,
-                #  train_batch_size=8,
-                #  eval_batch_size=8,
+                
                  num_train_epochs=4,
 
                  n_gpu=1 if USE_GPU else 0,
@@ -222,6 +218,13 @@ class MT5FineTuner(pl.LightningModule):
         super().__init__()
         self.save_hyperparameters()
 
+
+        #selfのコメントアウト
+        #  eval_batch_size=4,
+        #  train_batch_size=8,
+        #  eval_batch_size=8,
+        #  train_batch_size=2,
+        #  eval_batch_size=2,
         # 事前学習済みモデルの読み込み
         self.model = MT5ForConditionalGeneration.from_pretrained(self.hparams.model_name_or_path)
 
